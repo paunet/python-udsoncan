@@ -11,13 +11,16 @@ from udsoncan.Response import Response
 
 import logging, logging.config
 from os import path
-log_file_path = path.join(path.dirname(path.abspath(__file__)), 'logging.conf')
-logging.config.fileConfig(log_file_path)
+__default_log_config_file = path.join(path.dirname(path.abspath(__file__)), 'logging.conf')
 
-try:
-	logging.config.fileConfig(log_file_path)
-except Exception as e:
-	logging.warning('Cannot load logging configuration. %s:%s' % (e.__class__.__name__, str(e)))
+def setup_logging(config_file = __default_log_config_file):
+	"""
+	This function setup the logger accordingly to the module provided cfg file
+	"""
+	try:
+		logging.config.fileConfig(config_file)
+	except Exception as e:
+		logging.warning('Cannot load logging configuration from %s. %s:%s' % (config_file, e.__class__.__name__, str(e)))
 
 #Define how to encode/decode a Data Identifier value to/from a binary payload
 class DidCodec:
@@ -73,7 +76,30 @@ class DidCodec:
 
 		# The codec can be defined by a struct pack/unpack string
 		if isinstance(didconfig, str):
+			if len(didconfig) == 0:
+				raise ValueError("pack/unpack string given for Codec config should not be empty.")
 			return cls(packstr = didconfig)
+
+class AsciiCodec(DidCodec):
+	def __init__(self, string_len=None):
+		if string_len is None:
+			raise ValueError("You must provide a string length to the AsciiCodec")
+		self.string_len = string_len
+
+	def encode(self, string_ascii):
+		if len(string_ascii) != self.string_len:
+			raise ValueError('String must be %d long' % self.string_len)
+		return string_ascii.encode('ascii')
+
+	def decode(self, string_bin):
+		string_ascii = string_bin.decode('ascii')
+		if len(string_ascii) != self.string_len:
+			raise ValueError('Trying to decode a string of %d bytes but codec expects %d bytes' % (len(string_ascii), self.string_len))
+		return string_ascii
+
+	def __len__(self):
+		return self.string_len
+
 
 # Some standards, such as J1939, break down the 3-byte ID into 2-byte ID and 1-byte subtypes. 
 class Dtc:
